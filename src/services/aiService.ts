@@ -181,10 +181,18 @@ export async function extractBillWithAI(
 ): Promise<ExtractedBillData> {
   const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
 
-  // 1. Try Direct Gemini Cloud Vision API if API Key is configured in app
-  const clientApiKey = getCustomGeminiKey() || (process.env.GEMINI_API_KEY as string | undefined);
+  // 1. Try Direct Gemini Cloud Vision API
+  const clientApiKey =
+    getCustomGeminiKey() ||
+    (process.env.GEMINI_API_KEY as string | undefined);
+
   if (clientApiKey && clientApiKey.trim().length > 10) {
-    const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+    const candidateModels = [
+      'gemini-3.5-flash',
+      'gemini-3.1-flash-lite',
+      'gemini-3.8-flash',
+      'gemini-flash-latest',
+    ];
     for (const model of candidateModels) {
       try {
         console.log(`[AI Scanner] Calling direct Gemini Cloud Vision with ${model}...`);
