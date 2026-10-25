@@ -226,30 +226,48 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
         const base64 = reader.result as string;
         const extracted = await extractBillWithAI(base64, file.type);
         if (extracted) {
-          if (extracted.supplierName) setPartyName(extracted.supplierName);
+          if (extracted.supplierName) {
+            const cleanName = extracted.supplierName
+              .replace(/^[#*•\-_¢§£$%@!~`+=\\|\[\]{};:"'<>?\/0-9\s]+/, '')
+              .replace(/["'”]+$/, '')
+              .trim();
+            setPartyName(cleanName || extracted.supplierName);
+          }
           if (extracted.supplierPhone) setPartyPhone(extracted.supplierPhone);
           if (extracted.invoiceNumber) setQuotationNumber(extracted.invoiceNumber);
           if (extracted.invoiceDate) setQuotationDate(extracted.invoiceDate);
-          setIsInterstate(extracted.isInterstate);
+          setIsInterstate(Boolean(extracted.isInterstate));
 
           if (Array.isArray(extracted.items) && extracted.items.length > 0) {
-            const mappedItems: QuotationItem[] = extracted.items.map((it: any) => ({
-              productName: it.itemName,
-              hsn: it.hsn || undefined,
-              quantity: it.quantity,
-              unit: it.unit || 'PCS',
-              rate: it.purchaseRate,
-              discount: it.discount || 0,
-              taxableAmount: it.taxableAmount || it.quantity * it.purchaseRate,
-              gstRate: it.gstRate || 0,
-              cgst: it.cgst || 0,
-              sgst: it.sgst || 0,
-              igst: it.igst || 0,
-              lineTotal: it.lineTotal || it.quantity * it.purchaseRate,
-            }));
+            const mappedItems: QuotationItem[] = extracted.items.map((it: any, idx: number) => {
+              const nameFallback = (it.itemName || '').trim() || `Item #${idx + 1}`;
+              const qty = Number(it.quantity) > 0 ? Number(it.quantity) : 1;
+              const rate = Number(it.purchaseRate) || Number(it.rate) || 0;
+              const disc = Number(it.discount) || 0;
+              const gst = it.gstRate !== undefined && it.gstRate !== null ? Number(it.gstRate) : 18;
+              const taxable = Number(it.taxableAmount) || round2(qty * rate - disc);
+              const total = Number(it.lineTotal) || round2(taxable + (taxable * gst) / 100);
+
+              return {
+                productName: nameFallback,
+                hsn: it.hsn || undefined,
+                quantity: qty,
+                unit: it.unit || 'PCS',
+                rate,
+                discount: disc,
+                taxableAmount: taxable,
+                gstRate: gst,
+                cgst: it.cgst || 0,
+                sgst: it.sgst || 0,
+                igst: it.igst || 0,
+                lineTotal: total,
+              };
+            });
             setItems(mappedItems);
+            onShowToast(`${mappedItems.length} items extracted into quotation!`, 'success');
+          } else {
+            onShowToast('Vendor quotation details scanned with AI!', 'success');
           }
-          onShowToast('Vendor quotation scanned successfully with AI!', 'success');
         }
         setIsScanning(false);
       };
