@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Quotation, QuotationItem, Customer, Supplier, Product, Business } from '../../types';
 import { FileText, Plus, Search, Calendar, Building2, Users, Printer, Share2, CheckCircle2, Clock, XCircle, ArrowRight, Camera, Trash2, Edit3, Eye, FileCheck } from 'lucide-react';
-import { extractBillWithAI } from '../../services/aiService';
+import { extractBillWithAI, compressImage } from '../../services/aiService';
 import { round2 } from '../../utils/calculations';
 
 interface QuotationsViewProps {
@@ -221,64 +221,58 @@ export const QuotationsView: React.FC<QuotationsViewProps> = ({
 
     setIsScanning(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = reader.result as string;
-        const extracted = await extractBillWithAI(base64, file.type);
-        if (extracted) {
-          if (extracted.supplierName) {
-            const cleanName = extracted.supplierName
-              .replace(/^[#*•\-_¢§£$%@!~`+=\\|\[\]{};:"'<>?\/0-9\s]+/, '')
-              .replace(/["'”]+$/, '')
-              .trim();
-            setPartyName(cleanName || extracted.supplierName);
-          }
-          if (extracted.supplierPhone) setPartyPhone(extracted.supplierPhone);
-          if (extracted.invoiceNumber) setQuotationNumber(extracted.invoiceNumber);
-          if (extracted.invoiceDate) setQuotationDate(extracted.invoiceDate);
-          setIsInterstate(Boolean(extracted.isInterstate));
-
-          if (Array.isArray(extracted.items) && extracted.items.length > 0) {
-            const mappedItems: QuotationItem[] = extracted.items.map((it: any, idx: number) => {
-              const nameFallback = (it.itemName || '').trim() || `Item #${idx + 1}`;
-              const qty = Number(it.quantity) > 0 ? Number(it.quantity) : 1;
-              const rate = Number(it.purchaseRate) || Number(it.rate) || 0;
-              const disc = Number(it.discount) || 0;
-              const gst = it.gstRate !== undefined && it.gstRate !== null ? Number(it.gstRate) : 18;
-              const taxable = Number(it.taxableAmount) || round2(qty * rate - disc);
-              const total = Number(it.lineTotal) || round2(taxable + (taxable * gst) / 100);
-
-              return {
-                productName: nameFallback,
-                hsn: it.hsn || undefined,
-                quantity: qty,
-                unit: it.unit || 'PCS',
-                rate,
-                discount: disc,
-                taxableAmount: taxable,
-                gstRate: gst,
-                cgst: it.cgst || 0,
-                sgst: it.sgst || 0,
-                igst: it.igst || 0,
-                lineTotal: total,
-              };
-            });
-            setItems(mappedItems);
-            onShowToast(`${mappedItems.length} items extracted into quotation!`, 'success');
-          } else {
-            onShowToast('Vendor quotation details scanned with AI!', 'success');
-          }
+      const compressed = await compressImage(file, 1600, 0.85);
+      const extracted = await extractBillWithAI(compressed.base64, compressed.mimeType);
+      if (extracted) {
+        if (extracted.supplierName) {
+          let cleanName = extracted.supplierName
+            .replace(/^[#*•\-_¢§£$%@!~`+=\\|\[\]{};:"'<>?\/0-9\s]+/, '')
+            .trim();
+          cleanName = cleanName.replace(/^[a-z0-9]{1,3}\s+(?=[A-Z])/i, '').trim();
+          cleanName = cleanName.replace(/["'”]+$/, '').trim();
+          setPartyName(cleanName || extracted.supplierName);
         }
-        setIsScanning(false);
-      };
-      reader.onerror = () => {
-        onShowToast('Failed to read image file', 'error');
-        setIsScanning(false);
-      };
-      reader.readAsDataURL(file);
+        if (extracted.supplierPhone) setPartyPhone(extracted.supplierPhone);
+        if (extracted.invoiceNumber) setQuotationNumber(extracted.invoiceNumber);
+        if (extracted.invoiceDate) setQuotationDate(extracted.invoiceDate);
+        setIsInterstate(Boolean(extracted.isInterstate));
+
+        if (Array.isArray(extracted.items) && extracted.items.length > 0) {
+          const mappedItems: QuotationItem[] = extracted.items.map((it: any, idx: number) => {
+            const raw = (it.itemName || '').trim();
+            const cleanItemName = raw.replace(/^#?\d+[\s.)-]+/, '').trim() || `Item #${idx + 1}`;
+            const qty = Number(it.quantity) > 0 ? Number(it.quantity) : 1;
+            const rate = Number(it.purchaseRate) || Number(it.rate) || 0;
+            const disc = Number(it.discount) || 0;
+            const gst = it.gstRate !== undefined && it.gstRate !== null ? Number(it.gstRate) : 18;
+            const taxable = Number(it.taxableAmount) || round2(qty * rate - disc);
+            const total = Number(it.lineTotal) || round2(taxable + (taxable * gst) / 100);
+
+            return {
+              productName: cleanItemName,
+              hsn: it.hsn || undefined,
+              quantity: qty,
+              unit: it.unit || 'PCS',
+              rate,
+              discount: disc,
+              taxableAmount: taxable,
+              gstRate: gst,
+              cgst: it.cgst || 0,
+              sgst: it.sgst || 0,
+              igst: it.igst || 0,
+              lineTotal: total,
+            };
+          });
+          setItems(mappedItems);
+          onShowToast(`${mappedItems.length} items extracted into quotation!`, 'success');
+        } else {
+          onShowToast('Vendor quotation details scanned with AI!', 'success');
+        }
+      }
     } catch (err) {
       console.error('Scan error:', err);
       onShowToast('Failed to scan quotation image', 'error');
+    } finally {
       setIsScanning(false);
     }
   };

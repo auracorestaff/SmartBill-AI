@@ -97,8 +97,11 @@ export const BillVerificationModal: React.FC<BillVerificationModalProps> = ({
       .map((extItem, idx) => {
         // Product Auto-Matching by name, sku, hsn, code
         let rawName = (extItem.itemName || '').trim();
-        // Clean leading non-alphanumeric noise or isolated index numbers
-        rawName = rawName.replace(/^[#*•\-_¢§£$%@!~`+=\\|\[\]{};:"'<>?\/0-9\s]+/, '').trim();
+        // Clean leading row index number (e.g. "1.", "#1", "1-") and non-alphanumeric noise symbols
+        rawName = rawName
+          .replace(/^#?\d+[\s.)-]+/, '')
+          .replace(/^[#*•\-_¢§£$%@!~`+=\\|\[\]{};:"'<>?\/]+/, '')
+          .trim();
         const itemNameFallback = rawName || `Item #${idx + 1}`;
 
         const cleanName = itemNameFallback.toLowerCase();

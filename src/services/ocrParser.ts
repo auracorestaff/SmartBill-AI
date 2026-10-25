@@ -6,6 +6,40 @@ function parseCleanNum(s: string | null | undefined): number {
   return isNaN(n) ? 0 : n;
 }
 
+const COMMON_UNITS = [
+  'can',
+  'pcs',
+  'pcs.',
+  'nos',
+  'nos.',
+  'bag',
+  'bags',
+  'box',
+  'boxes',
+  'pkt',
+  'pkts',
+  'ltr',
+  'ltrs',
+  'kg',
+  'kgs',
+  'gm',
+  'gms',
+  'mtr',
+  'mtrs',
+  'tin',
+  'tins',
+  'jar',
+  'jars',
+  'drum',
+  'drums',
+  'set',
+  'sets',
+  'pair',
+  'pairs',
+  'roll',
+  'rolls',
+];
+
 /**
  * Intelligent on-device Indian GST invoice & bill text parser.
  * Handles single-line & multi-line item descriptions, HSN codes, Indian currency symbols (₹),
@@ -39,9 +73,9 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
     }
   }
 
-  // 3. Extract Invoice / Order Number
+  // 3. Extract Invoice / Estimate / Order Number
   let invoiceNumber: string | null = null;
-  const invNoRegex = /(?:Invoice\s*(?:No|Number|#)|Bill\s*(?:No|#)|Order\s*(?:No|#)|Inv\s*No)[\s.:#]*([A-Za-z0-9\/-]+)/i;
+  const invNoRegex = /(?:Invoice\s*(?:No|Number|#)|Bill\s*(?:No|#)|Order\s*(?:No|#)|Inv\s*No|Estimate\s*(?:No|Number|#))[\s.:#]*([A-Za-z0-9\/-]+)/i;
   for (const line of lines) {
     const match = line.match(invNoRegex);
     if (match && match[1] && match[1].length > 1) {
@@ -81,6 +115,8 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
     'bill of supply',
     'cash memo',
     'invoice',
+    'estimate',
+    'quotation',
     'original for recipient',
     'duplicate for transporter',
     'gst',
@@ -89,15 +125,22 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
     'transportation details',
   ];
 
-  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+  for (let i = 0; i < Math.min(lines.length, 12); i++) {
     const line = lines[i];
     const lower = line.toLowerCase();
     const isIgnored = ignoreHeadingKeywords.some((kw) => lower === kw || lower.startsWith(kw + ' '));
-    if (!isIgnored && line.length >= 3 && !line.match(/^[0-9\W]+$/) && !line.includes('GSTIN') && !line.includes('Phone')) {
+    if (
+      !isIgnored &&
+      line.length >= 3 &&
+      !line.match(/^[0-9\W]+$/) &&
+      !line.includes('GSTIN') &&
+      !line.includes('Phone') &&
+      !line.includes('Estimate For')
+    ) {
       // Clean non-alphanumeric noise, OCR glitches like "¢§ bn CHEMIZONE CHEMICALS"
       let cleanedName = line.replace(/^[#*•\-_¢§£$%@!~`+=\\|\[\]{};:"'<>?\/0-9\s]+/, '').trim();
-      // Remove leading junk 1-2 character tokens if immediately followed by capitalized vendor name
-      cleanedName = cleanedName.replace(/^[a-z0-9]{1,2}\s+(?=[A-Z])/i, '').trim();
+      // Remove leading junk 1-3 character tokens (e.g. "bn ", "ab ") if immediately followed by capitalized vendor name
+      cleanedName = cleanedName.replace(/^[a-z0-9]{1,3}\s+(?=[A-Z])/i, '').trim();
       cleanedName = cleanedName.replace(/["'”]+$/, '').trim();
 
       if (cleanedName.length >= 3) {
@@ -119,8 +162,19 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
     const lower = line.toLowerCase();
 
     // Check for Grand Total
-    if (!grandTotal && (lower.includes('grand total') || lower.includes('total amount') || lower.includes('total payable') || lower.includes('net amount') || lower.startsWith('total ') || lower === 'total')) {
-      const numMatches = line.match(/[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g);
+    if (
+      !grandTotal &&
+      (lower.includes('grand total') ||
+        lower.includes('total amount') ||
+        lower.includes('total payable') ||
+        lower.includes('net amount') ||
+        lower.startsWith('total ') ||
+        lower.startsWith('total:') ||
+        lower === 'total')
+    ) {
+      const numMatches = line.match(
+        /[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g
+      );
       if (numMatches && numMatches.length > 0) {
         const lastVal = parseCleanNum(numMatches[numMatches.length - 1]);
         if (lastVal > 0) grandTotal = lastVal;
@@ -128,8 +182,16 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
     }
 
     // Check for Subtotal / Taxable Total
-    if (!taxableTotal && (lower.includes('sub total') || lower.includes('subtotal') || lower.includes('taxable amount') || lower.includes('taxable value'))) {
-      const numMatches = line.match(/[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g);
+    if (
+      !taxableTotal &&
+      (lower.includes('sub total') ||
+        lower.includes('subtotal') ||
+        lower.includes('taxable amount') ||
+        lower.includes('taxable value'))
+    ) {
+      const numMatches = line.match(
+        /[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g
+      );
       if (numMatches && numMatches.length > 0) {
         const lastVal = parseCleanNum(numMatches[numMatches.length - 1]);
         if (lastVal > 0) taxableTotal = lastVal;
@@ -138,7 +200,9 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
 
     // Check for IGST
     if (!totalIGST && lower.includes('igst')) {
-      const numMatches = line.match(/[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g);
+      const numMatches = line.match(
+        /[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g
+      );
       if (numMatches && numMatches.length > 0) {
         const lastVal = parseCleanNum(numMatches[numMatches.length - 1]);
         if (lastVal > 0) totalIGST = lastVal;
@@ -147,14 +211,18 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
 
     // Check for CGST / SGST
     if (!totalCGST && lower.includes('cgst')) {
-      const numMatches = line.match(/[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g);
+      const numMatches = line.match(
+        /[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g
+      );
       if (numMatches && numMatches.length > 0) {
         const lastVal = parseCleanNum(numMatches[numMatches.length - 1]);
         if (lastVal > 0) totalCGST = lastVal;
       }
     }
     if (!totalSGST && lower.includes('sgst')) {
-      const numMatches = line.match(/[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g);
+      const numMatches = line.match(
+        /[₹]?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g
+      );
       if (numMatches && numMatches.length > 0) {
         const lastVal = parseCleanNum(numMatches[numMatches.length - 1]);
         if (lastVal > 0) totalSGST = lastVal;
@@ -162,67 +230,161 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
     }
   }
 
-  // 7. Multi-line & Single-line Item Table Parser
+  // 7. Multi-Strategy Item Table Parser
+  // Handles:
+  // - Tabular rows with columns: [Index] [Item Name] [HSN] [Qty] [Unit] [Rate] [Tax] [Total]
+  // - Standard Indian formats with GST% inline: e.g. "1 Phenyl 5ltr 3808 1 Can 170.00 18.00 (18%) 200.60"
+  // - Multi-line wrapped item descriptions
+  // - Pipe-separated columns (| Item | Qty | Rate | Total |)
   const items: any[] = [];
-  let pendingName = '';
+  let pendingDescription = '';
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lower = line.toLowerCase();
+    const rawLine = lines[i];
+    const lower = rawLine.toLowerCase();
 
-    // Skip non-item sections
+    // Skip non-item headers and footers
     if (
       lower.startsWith('total') ||
       lower.startsWith('sub total') ||
       lower.startsWith('subtotal') ||
       lower.includes('taxable amount') ||
-      lower.includes('tax type') ||
+      lower.includes('tax summary') ||
+      lower.includes('amount in words') ||
+      lower.includes('rupees only') ||
+      lower.includes('terms & conditions') ||
+      lower.includes('terms and conditions') ||
+      lower.includes('authorized signatory') ||
+      lower.includes('bank details') ||
+      lower.includes('estimate details') ||
       lower.includes('order details') ||
       lower.includes('transportation details') ||
-      lower.includes('dispatch') ||
-      lower.includes('advance') ||
-      lower.includes('balance') ||
-      lower.includes('hsn/sac quantity')
+      lower.includes('item name hsn') ||
+      lower.includes('item description') ||
+      lower.includes('description of goods') ||
+      lower.includes('estimate for') ||
+      lower.includes('billed to') ||
+      lower.includes('shipped to') ||
+      lower.includes('buyer') ||
+      lower.includes('consignee') ||
+      lower.includes('time:') ||
+      lower.includes('email:') ||
+      lower.includes('state:') ||
+      lower.includes('address:') ||
+      lower.includes('industrial area')
     ) {
+      pendingDescription = '';
       continue;
     }
 
-    // Clean line
-    const cleaned = line.replace(/₹/g, '').replace(/\(\s*([0-9]+)%\s*\)/g, '$1%');
+    // Clean line: replace pipes, tabs, and duplicate spaces
+    let s = rawLine.replace(/[|│]/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // Pattern A: Multi-column Indian GST table (Item, HSN, Qty, Unit, Rate, Taxable, Tax, Total)
-    // Matches lines ending with numerical values (rate, taxable, total)
-    const matchA = cleaned.match(
-      /(?:^(\d+)[\s.)]+)?(.*?)(\b\d{4,8}\b)?\s+(\d+(?:\.\d+)?)\s*(Pcs|PCS|PCS\.|Kg|KG|Gm|GM|Box|BOX|Pkt|PKT|Ltr|LTR|Mtr|MTR|-)?\s+([\d,]+(?:\.\d+)?)\s+([\d,]+(?:\.\d+)?)(?:\s+([\d,]+(?:\.\d+)?(?:\s*\d+%)?))?\s+([\d,]+(?:\.\d+)?)$/i
-    );
+    // Extract GST % if present e.g. "(18%)" or "18%" or "( 18 % )"
+    let lineGstRate = totalIGST || totalCGST ? 5 : 0;
+    const gstMatch = s.match(/\(?(\d+(?:\.\d+)?)%\)?/);
+    if (gstMatch) {
+      lineGstRate = parseFloat(gstMatch[1]);
+    }
 
-    // Pattern B: Simplified format (Item, HSN, Qty, Unit, Rate, Total)
-    const matchB = !matchA ? cleaned.match(
-      /(?:^(\d+)[\s.)]+)?(.*?)(\b\d{4,8}\b)?\s+([\d,]+(?:\.\d+)?)\s*(PCS|Pcs|PCS\.|Kg|KG|Gm|GM|Box|BOX|Pkt|PKT|Ltr|LTR|Mtr|MTR)?\s+([\d,]+(?:\.\d+)?)\s*(?:PCS|Kg|Gm|Box|Pkt|Ltr|Mtr)?\s+([\d,]+(?:\.\d+)?)$/i
-    ) : null;
+    // Strip parenthesized percentages so they don't corrupt number extraction: e.g. "18.00 (18%)" -> "18.00"
+    s = s.replace(/\(\s*\d+(?:\.\d+)?%\s*\)/g, '');
 
-    if (matchA) {
-      let namePart = matchA[2]?.trim() || '';
-      let finalName = pendingName ? `${pendingName} ${namePart}`.trim() : namePart;
-      pendingName = '';
+    const tokens = s.split(' ').filter((t) => t.length > 0);
 
-      // Clean leading index numbers
-      finalName = finalName.replace(/^\d+[\s.)]+/, '').trim();
-      if (!finalName && matchA[1]) finalName = `Item #${matchA[1]}`;
-      if (!finalName) finalName = 'Item';
+    // Look for trailing numbers (from right to left)
+    const trailingNumbers: number[] = [];
+    let tokenIdx = tokens.length - 1;
 
-      const hsn = matchA[3] || null;
-      const qty = parseCleanNum(matchA[4]) || 1;
-      const unit = matchA[5] && matchA[5] !== '-' ? matchA[5].toUpperCase() : 'PCS';
-      const rate = parseCleanNum(matchA[6]);
-      const taxable = parseCleanNum(matchA[7]);
-      const lineTotal = parseCleanNum(matchA[9]) || taxable || qty * rate;
+    while (tokenIdx >= 0) {
+      const rawVal = tokens[tokenIdx].replace(/[₹$,]/g, '');
+      if (/^\d+(?:\.\d+)?$/.test(rawVal)) {
+        trailingNumbers.unshift(parseFloat(rawVal));
+        tokenIdx--;
+      } else {
+        break;
+      }
+    }
 
-      // Extract GST rate if present in line e.g. "5%" or "18%"
-      let gstRate = totalIGST || totalCGST ? 5 : 0;
-      const gstMatch = cleaned.match(/(\d+)%/);
-      if (gstMatch) {
-        gstRate = parseInt(gstMatch[1], 10);
+    // If this line ends with at least 1 number (e.g. Rate, Amount, Total):
+    if (trailingNumbers.length >= 1) {
+      // Check for Unit immediately preceding the trailing numbers
+      let unit = 'PCS';
+      if (tokenIdx >= 0) {
+        const potentialUnit = tokens[tokenIdx].toLowerCase().replace(/[^a-z.]/g, '');
+        if (COMMON_UNITS.includes(potentialUnit)) {
+          unit = potentialUnit.replace('.', '').toUpperCase();
+          tokenIdx--;
+        }
+      }
+
+      // Check for Quantity preceding the unit
+      let qty = 1;
+      if (tokenIdx >= 0) {
+        const rawQty = tokens[tokenIdx].replace(/[₹$,]/g, '');
+        if (/^\d+(?:\.\d+)?$/.test(rawQty)) {
+          const q = parseFloat(rawQty);
+          if (q > 0 && q <= 10000) {
+            qty = q;
+            tokenIdx--;
+          }
+        }
+      }
+
+      // Check for HSN / SAC Code preceding quantity (4 to 8 digits)
+      let hsn: string | null = null;
+      if (tokenIdx >= 0 && /^\d{4,8}$/.test(tokens[tokenIdx])) {
+        hsn = tokens[tokenIdx];
+        tokenIdx--;
+      }
+
+      // Everything remaining on the left is the item name tokens
+      let nameTokens = tokens.slice(0, tokenIdx + 1);
+
+      // Strip leading row number / index (e.g. "1", "1.", "#1", "1)")
+      if (nameTokens.length > 1 && /^#?\d+[\s.)-]*$/.test(nameTokens[0])) {
+        nameTokens.shift();
+      }
+
+      let parsedName = nameTokens.join(' ').trim();
+
+      // Combine with any pending multi-line description
+      let finalName = pendingDescription ? `${pendingDescription} ${parsedName}`.trim() : parsedName;
+      pendingDescription = '';
+
+      // Clean leading index digits if still remaining
+      finalName = finalName.replace(/^#?\d+[\s.)-]+/, '').trim();
+
+      // Ensure item name is NEVER blank
+      if (!finalName) {
+        finalName = `Item #${items.length + 1}`;
+      }
+
+      // Assign numbers logically based on count:
+      // If 4 numbers: [Rate, Taxable, TaxAmt, LineTotal]
+      // If 3 numbers: [Rate, TaxAmt/Taxable, LineTotal]
+      // If 2 numbers: [Rate, LineTotal]
+      // If 1 number:  [LineTotal] (Rate = LineTotal / Qty)
+      let purchaseRate = 0;
+      let taxableAmount = 0;
+      let lineTotal = 0;
+
+      if (trailingNumbers.length >= 4) {
+        purchaseRate = trailingNumbers[0];
+        taxableAmount = trailingNumbers[1];
+        lineTotal = trailingNumbers[trailingNumbers.length - 1];
+      } else if (trailingNumbers.length === 3) {
+        purchaseRate = trailingNumbers[0];
+        taxableAmount = trailingNumbers[1];
+        lineTotal = trailingNumbers[2];
+      } else if (trailingNumbers.length === 2) {
+        purchaseRate = trailingNumbers[0];
+        taxableAmount = purchaseRate * qty;
+        lineTotal = trailingNumbers[1];
+      } else {
+        lineTotal = trailingNumbers[0];
+        taxableAmount = lineTotal;
+        purchaseRate = qty > 0 ? lineTotal / qty : lineTotal;
       }
 
       items.push({
@@ -231,66 +393,37 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
         hsn,
         quantity: qty,
         unit,
-        purchaseRate: rate,
+        purchaseRate: Math.round(purchaseRate * 100) / 100,
         discount: 0,
-        taxableAmount: taxable,
-        gstRate,
-        cgst: totalCGST ? (taxable * (gstRate / 200)) : 0,
-        sgst: totalSGST ? (taxable * (gstRate / 200)) : 0,
-        igst: totalIGST ? (taxable * (gstRate / 100)) : 0,
-        lineTotal,
-        confidence: 'high',
-      });
-    } else if (matchB) {
-      let namePart = matchB[2]?.trim() || '';
-      let finalName = pendingName ? `${pendingName} ${namePart}`.trim() : namePart;
-      pendingName = '';
-
-      finalName = finalName.replace(/^\d+[\s.)]+/, '').trim();
-      if (!finalName) finalName = matchB[1] ? `Item #${matchB[1]}` : 'Item';
-
-      const hsn = matchB[3] || null;
-      const qty = parseCleanNum(matchB[4]) || 1;
-      const unit = (matchB[5] || 'PCS').toUpperCase();
-      const rate = parseCleanNum(matchB[6]);
-      const lineTotal = parseCleanNum(matchB[7]) || qty * rate;
-
-      items.push({
-        itemName: finalName,
-        productCode: null,
-        hsn,
-        quantity: qty,
-        unit,
-        purchaseRate: rate,
-        discount: 0,
-        taxableAmount: lineTotal,
-        gstRate: totalIGST || totalCGST ? 5 : 0,
-        cgst: 0,
-        sgst: 0,
-        igst: totalIGST ? lineTotal * 0.05 : 0,
-        lineTotal,
+        taxableAmount: Math.round(taxableAmount * 100) / 100,
+        gstRate: lineGstRate,
+        cgst: totalCGST ? Math.round((taxableAmount * (lineGstRate / 200)) * 100) / 100 : 0,
+        sgst: totalSGST ? Math.round((taxableAmount * (lineGstRate / 200)) * 100) / 100 : 0,
+        igst: totalIGST ? Math.round((taxableAmount * (lineGstRate / 100)) * 100) / 100 : 0,
+        lineTotal: Math.round(lineTotal * 100) / 100,
         confidence: 'high',
       });
     } else {
-      // Line didn't have full numeric columns. Check if it is a product name or wrapped description
+      // Line had no trailing numeric values: could be a wrapped product name (e.g. "Multipurpose clean 5 ltr can")
       if (
-        /[a-zA-Z]{3,}/.test(line) &&
-        !/gstin|phone|email|colony|alipore|date|so\/|order no|delhi|uttar pradesh|bengal/i.test(line)
+        /[a-zA-Z]{2,}/.test(rawLine) &&
+        !/gstin|phone|email|colony|alipore|date|estimate no|order no|delhi|uttar pradesh|bengal|karnataka|maharashtra/i.test(
+          rawLine
+        )
       ) {
-        if (/^\d+[\s.)]+[a-zA-Z]/.test(line)) {
-          pendingName = line.replace(/^\d+[\s.)]+/, '').trim();
-        } else if (pendingName) {
-          pendingName += ` ${line}`;
+        let cleanTextLine = rawLine.replace(/^#?\d+[\s.)-]+/, '').trim();
+        if (cleanTextLine.length > 0) {
+          pendingDescription = pendingDescription ? `${pendingDescription} ${cleanTextLine}` : cleanTextLine;
         }
       }
     }
   }
 
   // 8. Auto-Reconcile with Grand Total
-  // If we have a verified Grand Total (e.g. ₹58,798) from the footer:
+  // If we have a verified Grand Total (e.g. ₹21,738) from the footer:
   if (grandTotal && grandTotal > 0) {
     if (items.length === 0) {
-      // No items parsed: create a single summary item equal to the grand total
+      // No items parsed: create a single clean summary item equal to the grand total
       items.push({
         itemName: supplierName ? `Supplies from ${supplierName}` : 'Purchase Bill Items',
         productCode: null,
@@ -312,10 +445,10 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
       const itemsSum = items.reduce((sum, it) => sum + (it.lineTotal || 0), 0);
       const diff = Math.round((grandTotal - itemsSum) * 100) / 100;
 
-      // If there is an unparsed remainder greater than ₹5 (e.g. bottom items cut off by camera):
-      if (diff > 5) {
+      // If there is an unparsed remainder greater than ₹250 and we only captured very few items (e.g. bottom items cut off by camera):
+      if (diff > 250 && items.length < 5) {
         items.push({
-          itemName: 'Additional Invoice Items (See Photo)',
+          itemName: 'Additional Bill Items (See Photo)',
           productCode: null,
           hsn: null,
           quantity: 1,

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Camera,
   Upload,
@@ -10,8 +10,16 @@ import {
   CheckCircle2,
   Check,
   FileCheck,
+  Key,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
-import { compressImage, extractBillWithAI } from '../../services/aiService';
+import {
+  compressImage,
+  extractBillWithAI,
+  getCustomGeminiKey,
+  saveCustomGeminiKey,
+} from '../../services/aiService';
 import { ExtractedBillData } from '../../types';
 
 interface PurchaseScannerModalProps {
@@ -30,8 +38,36 @@ export const PurchaseScannerModal: React.FC<PurchaseScannerModalProps> = ({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
+  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [savedKey, setSavedKey] = useState('');
+  const [keySavedToast, setKeySavedToast] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const k = getCustomGeminiKey();
+      setSavedKey(k);
+      setApiKeyInput(k);
+    }
+  }, [isOpen]);
+
+  const handleSaveApiKey = () => {
+    saveCustomGeminiKey(apiKeyInput.trim());
+    setSavedKey(apiKeyInput.trim());
+    setIsApiKeyDialogOpen(false);
+    setKeySavedToast(true);
+    setTimeout(() => setKeySavedToast(false), 3000);
+  };
+
+  const handleClearApiKey = () => {
+    saveCustomGeminiKey('');
+    setSavedKey('');
+    setApiKeyInput('');
+    setIsApiKeyDialogOpen(false);
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,7 +119,7 @@ export const PurchaseScannerModal: React.FC<PurchaseScannerModalProps> = ({
       isInterstate: false,
       items: [
         {
-          itemName: 'Purchase Items (Review Photo)',
+          itemName: 'Item #1',
           productCode: null,
           hsn: null,
           quantity: 1,
@@ -127,7 +163,7 @@ export const PurchaseScannerModal: React.FC<PurchaseScannerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex flex-col justify-end sm:justify-center p-0 sm:p-4 overflow-y-auto">
-      {/* Hidden file inputs: one for environment camera, one for general file picker */}
+      {/* Hidden file inputs */}
       <input
         type="file"
         ref={cameraInputRef}
@@ -156,14 +192,93 @@ export const PurchaseScannerModal: React.FC<PurchaseScannerModalProps> = ({
               <p className="text-[11px] text-slate-500">Scan printed, GST, or thermal purchase bills</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsApiKeyDialogOpen(!isApiKeyDialogOpen)}
+              title="Configure Gemini Cloud AI Key"
+              className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 transition-all ${
+                savedKey
+                  ? 'bg-amber-50 border-amber-300 text-amber-700 font-medium'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Key className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden sm:inline">{savedKey ? 'Cloud AI Active' : 'AI Key'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
+
+        {/* Optional Gemini API Key Dialog */}
+        {isApiKeyDialogOpen && (
+          <div className="p-4 bg-amber-50/70 border-b border-amber-200 animate-in fade-in duration-150">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                <h4 className="text-xs font-bold text-amber-900">Google Gemini AI Key (Optional)</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsApiKeyDialogOpen(false)}
+                className="text-amber-700 hover:text-amber-950 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-[11px] text-amber-800 mt-1">
+              Add your free Gemini API key to enable direct cloud AI vision scanning on your mobile phone:
+            </p>
+            <div className="mt-2 flex gap-2">
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="AIzaSy... or AQ..."
+                className="flex-1 px-3 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-500 font-mono"
+              />
+              <button
+                type="button"
+                onClick={handleSaveApiKey}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold"
+              >
+                Save
+              </button>
+              {savedKey && (
+                <button
+                  type="button"
+                  onClick={handleClearApiKey}
+                  className="px-2.5 py-1.5 bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 rounded-lg text-xs"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="mt-2 text-[10px] text-amber-700 flex items-center gap-1">
+              <span>Get 100% free API key at</span>
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold underline flex items-center gap-0.5"
+              >
+                Google AI Studio <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            </div>
+          </div>
+        )}
+
+        {keySavedToast && (
+          <div className="p-2 bg-emerald-50 border-b border-emerald-200 text-center text-xs text-emerald-800 font-semibold animate-in fade-in">
+            ✓ Gemini API Key saved! Cloud AI will be used for scanning.
+          </div>
+        )}
 
         {/* Modal Body */}
         <div className="p-4 sm:p-6">
@@ -208,7 +323,7 @@ export const PurchaseScannerModal: React.FC<PurchaseScannerModalProps> = ({
               <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex items-start gap-2.5">
                 <FileCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <div className="text-[11px] text-blue-900 leading-relaxed">
-                  <span className="font-bold">Multimodal Vision:</span> Supports printed GST tax invoices, thermal printer receipts, mixed Hindi/English invoices, handwritten bills, and long receipt rolls.
+                  <span className="font-bold">Enhanced Dual AI Scanner:</span> Works offline via high-precision Indian GST columnar OCR, and cloud-assisted with Gemini AI. Supports printed GST invoices, thermal bills, and vendor vouchers.
                 </div>
               </div>
 
@@ -225,106 +340,82 @@ export const PurchaseScannerModal: React.FC<PurchaseScannerModalProps> = ({
               </div>
             </div>
           ) : (
-            /* Step 2: Image Preview and Confirm */
+            /* Step 2: Preview Chosen Bill & Process */
             <div className="space-y-4">
-              {/* Image Preview Container */}
-              <div className="relative rounded-2xl overflow-hidden bg-slate-950 max-h-80 flex items-center justify-center border border-slate-800 shadow-inner">
+              <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center max-h-72">
                 <img
                   src={selectedImage}
                   alt="Bill Preview"
-                  className="max-h-80 w-auto object-contain"
+                  className="max-h-72 w-auto object-contain"
                 />
-                {isProcessing && (
-                  <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white text-center">
-                    <div className="w-12 h-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin mb-3" />
-                    <p className="text-sm font-bold flex items-center gap-1.5">
-                      <Camera className="w-4 h-4 text-blue-400" />
-                      <span>Reading Bill Details...</span>
-                    </p>
-                    <p className="text-xs text-slate-300 mt-1">
-                      Extracting vendor, items, GST, and totals accurately.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Error fallback card if AI fails or image unreadable */}
-              {extractionError && (
-                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <h5 className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                        Scan Verification Notice
-                      </h5>
-                      <p className="text-xs text-amber-900 mt-0.5">
-                        {extractionError}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleVerifyAnyway}
-                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-98 transition-all"
-                    >
-                      <Check className="w-4 h-4 text-white" />
-                      <span>CONTINUE WITH THIS BILL PHOTO & VERIFY</span>
-                    </button>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <button
-                        type="button"
-                        onClick={handleUseThisBill}
-                        className="py-2 px-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-xs"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>RETRY SCAN</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRetake}
-                        className="py-2 px-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-xs"
-                      >
-                        <Camera className="w-3.5 h-3.5" />
-                        <span>RETAKE</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={onManualEntry}
-                        className="py-2 px-2 rounded-xl bg-white border border-amber-300 hover:bg-amber-100/50 text-amber-900 font-bold text-xs flex items-center justify-center gap-1 shadow-xs"
-                      >
-                        <FileEdit className="w-3.5 h-3.5" />
-                        <span>MANUAL</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons when no error */}
-              {!extractionError && !isProcessing && (
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                {!isProcessing && (
                   <button
                     type="button"
                     onClick={handleRetake}
-                    className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                    className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-xs transition-colors"
+                    title="Retake Photo"
                   >
                     <RotateCcw className="w-4 h-4" />
-                    <span>Retake Photo</span>
                   </button>
+                )}
+              </div>
 
+              {/* Extraction Error Notice with Fallback Options */}
+              {extractionError && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">{extractionError}</p>
+                      <p className="text-[11px] text-amber-700 mt-1">
+                        You can still proceed to the verification screen where you can review the photo and fill in the values.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleRetake}
+                  disabled={isProcessing}
+                  className="flex-1 py-3 px-4 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-sm transition-colors disabled:opacity-50"
+                >
+                  Retake Photo
+                </button>
+
+                {!extractionError ? (
                   <button
                     type="button"
                     onClick={handleUseThisBill}
-                    className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md transition-all active:scale-[0.98]"
+                    disabled={isProcessing}
+                    className="flex-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-all disabled:opacity-60 flex items-center justify-center gap-2"
                   >
-                    <Check className="w-4 h-4 text-white" />
-                    <span>Use This Bill</span>
+                    {isProcessing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Extracting Bill Data...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Auto-Scan with AI</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
-                </div>
-              )}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleVerifyAnyway}
+                    className="flex-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>Proceed & Fill Bill</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
