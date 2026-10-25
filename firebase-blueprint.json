@@ -1,0 +1,249 @@
+{
+  "entities": {
+    "Business": {
+      "title": "Business",
+      "description": "Business profile and accounting settings for the owner.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "name": { "type": "string", "maxLength": 150 },
+        "ownerName": { "type": "string", "maxLength": 100 },
+        "address": { "type": "string", "maxLength": 300 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "email": { "type": "string", "maxLength": 100 },
+        "gstin": { "type": "string", "maxLength": 20 },
+        "logoUrl": { "type": "string" },
+        "state": { "type": "string", "maxLength": 50 },
+        "invoicePrefix": { "type": "string", "maxLength": 20 },
+        "startingInvoiceNumber": { "type": "number" },
+        "currentInvoiceNumber": { "type": "number" },
+        "gstEnabled": { "type": "boolean" },
+        "defaultGstRate": { "type": "number" },
+        "invoiceFooter": { "type": "string", "maxLength": 500 },
+        "paymentTerms": { "type": "string", "maxLength": 500 },
+        "allowNegativeStock": { "type": "boolean" },
+        "lowStockThreshold": { "type": "number" }
+      },
+      "required": ["id", "ownerUid", "name"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Inventory product item.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 200 },
+        "sku": { "type": "string", "maxLength": 50 },
+        "barcode": { "type": "string", "maxLength": 50 },
+        "hsn": { "type": "string", "maxLength": 20 },
+        "category": { "type": "string", "maxLength": 50 },
+        "unit": { "type": "string", "maxLength": 20 },
+        "purchasePrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "gstRate": { "type": "number" },
+        "openingStock": { "type": "number" },
+        "currentStock": { "type": "number" },
+        "minimumStock": { "type": "number" }
+      },
+      "required": ["id", "businessId", "name", "sellingPrice", "currentStock"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Customer entity for sales billing and balances.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "whatsappNumber": { "type": "string", "maxLength": 20 },
+        "address": { "type": "string", "maxLength": 300 },
+        "gstin": { "type": "string", "maxLength": 20 },
+        "openingBalance": { "type": "number" },
+        "currentBalance": { "type": "number" },
+        "creditLimit": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "businessId", "name"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Supplier entity for purchase billing and payables.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "address": { "type": "string", "maxLength": 300 },
+        "gstin": { "type": "string", "maxLength": 20 },
+        "openingBalance": { "type": "number" },
+        "currentBalance": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "businessId", "name"]
+    },
+    "Purchase": {
+      "title": "Purchase",
+      "description": "Purchase bill record scanned or entered.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "supplierName": { "type": "string", "maxLength": 150 },
+        "supplierGSTIN": { "type": "string", "maxLength": 20 },
+        "supplierPhone": { "type": "string", "maxLength": 20 },
+        "invoiceNumber": { "type": "string", "maxLength": 50 },
+        "invoiceDate": { "type": "string", "maxLength": 30 },
+        "dueDate": { "type": "string", "maxLength": 30 },
+        "subtotal": { "type": "number" },
+        "totalDiscount": { "type": "number" },
+        "taxableTotal": { "type": "number" },
+        "totalCGST": { "type": "number" },
+        "totalSGST": { "type": "number" },
+        "totalIGST": { "type": "number" },
+        "totalTax": { "type": "number" },
+        "grandTotal": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "balanceDue": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["PAID", "PARTIAL", "UNPAID"] },
+        "paymentMethod": { "type": "string", "maxLength": 30 },
+        "originalBillImageUrl": { "type": "string" },
+        "notes": { "type": "string", "maxLength": 500 },
+        "needsVerification": { "type": "boolean" }
+      },
+      "required": ["id", "businessId", "supplierName", "grandTotal"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Sales invoice record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "invoiceNumber": { "type": "string", "maxLength": 50 },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string", "maxLength": 150 },
+        "customerPhone": { "type": "string", "maxLength": 20 },
+        "customerAddress": { "type": "string", "maxLength": 300 },
+        "customerGSTIN": { "type": "string", "maxLength": 20 },
+        "invoiceDate": { "type": "string", "maxLength": 30 },
+        "dueDate": { "type": "string", "maxLength": 30 },
+        "isInterstate": { "type": "boolean" },
+        "subtotal": { "type": "number" },
+        "totalDiscount": { "type": "number" },
+        "taxableTotal": { "type": "number" },
+        "totalCGST": { "type": "number" },
+        "totalSGST": { "type": "number" },
+        "totalIGST": { "type": "number" },
+        "totalTax": { "type": "number" },
+        "roundOff": { "type": "number" },
+        "grandTotal": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "balanceDue": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["PAID", "PARTIAL", "UNPAID"] },
+        "paymentMethod": { "type": "string", "maxLength": 30 },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "businessId", "invoiceNumber", "customerName", "grandTotal"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment receipt or voucher for customer or supplier.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "partyType": { "type": "string", "enum": ["CUSTOMER", "SUPPLIER"] },
+        "partyId": { "type": "string" },
+        "partyName": { "type": "string", "maxLength": 150 },
+        "type": { "type": "string", "enum": ["RECEIVE", "PAY"] },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "maxLength": 30 },
+        "paymentMethod": { "type": "string", "enum": ["CASH", "UPI", "BANK", "CARD", "OTHER"] },
+        "referenceNumber": { "type": "string", "maxLength": 50 },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "businessId", "partyType", "partyName", "amount", "type"]
+    },
+    "StockMovement": {
+      "title": "StockMovement",
+      "description": "Audit record of any inventory stock change.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string", "maxLength": 200 },
+        "date": { "type": "string", "maxLength": 30 },
+        "type": { "type": "string", "enum": ["OPENING", "PURCHASE", "SALE", "PURCHASE_RETURN", "SALE_RETURN", "ADJUSTMENT"] },
+        "quantity": { "type": "number" },
+        "rate": { "type": "number" },
+        "referenceId": { "type": "string" },
+        "referenceType": { "type": "string", "enum": ["PURCHASE", "SALE", "RETURN", "MANUAL"] },
+        "referenceNumber": { "type": "string", "maxLength": 50 },
+        "previousStock": { "type": "number" },
+        "newStock": { "type": "number" }
+      },
+      "required": ["id", "businessId", "productId", "quantity", "type", "newStock"]
+    },
+    "Quotation": {
+      "title": "Quotation",
+      "description": "Customer estimates and vendor quotations.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "type": { "type": "string", "enum": ["CUSTOMER", "VENDOR"] },
+        "partyName": { "type": "string", "maxLength": 150 },
+        "quotationNumber": { "type": "string", "maxLength": 50 },
+        "quotationDate": { "type": "string", "maxLength": 30 },
+        "grandTotal": { "type": "number" },
+        "status": { "type": "string", "enum": ["PENDING", "SENT", "ACCEPTED", "CONVERTED", "REJECTED"] }
+      },
+      "required": ["id", "businessId", "ownerUid", "partyName", "quotationNumber", "grandTotal"]
+    }
+  },
+  "firestore": {
+    "/businesses/{businessId}": {
+      "schema": "Business",
+      "description": "Stores user business profiles"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Inventory products owned by business"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Customers for sales and receivables"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Suppliers for purchases and payables"
+    },
+    "/purchases/{purchaseId}": {
+      "schema": "Purchase",
+      "description": "Scanned and manual purchase bills"
+    },
+    "/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Sales invoices"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Customer collections and supplier disbursements"
+    },
+    "/stockMovements/{movementId}": {
+      "schema": "StockMovement",
+      "description": "Stock audit ledger entries"
+    },
+    "/quotations/{quotationId}": {
+      "schema": "Quotation",
+      "description": "Customer and vendor quotation records"
+    }
+  }
+}

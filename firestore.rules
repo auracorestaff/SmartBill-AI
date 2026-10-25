@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isDocOwner() {
+      return isSignedIn() && (
+        resource == null ||
+        !('ownerUid' in resource.data) ||
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.ownerUid == 'demo_user' ||
+        resource.data.ownerUid == ''
+      );
+    }
+
+    function isIncomingOwner() {
+      return isSignedIn() && (
+        !('ownerUid' in request.resource.data) ||
+        request.resource.data.ownerUid == request.auth.uid ||
+        request.resource.data.ownerUid == 'demo_user' ||
+        request.resource.data.ownerUid == ''
+      );
+    }
+
+    // Businesses collection
+    match /businesses/{businessId} {
+      allow read: if isDocOwner();
+      allow create: if isIncomingOwner();
+      allow update: if isDocOwner() && isIncomingOwner();
+      allow delete: if isDocOwner();
+    }
+
+    // Products collection
+    match /products/{productId} {
+      allow read: if isDocOwner();
+      allow create: if isIncomingOwner();
+      allow update: if isDocOwner() && isIncomingOwner();
+      allow delete: if isDocOwner();
+    }
+
+    // Customers collection
+    match /customers/{customerId} {
+      allow read: if isDocOwner();
+      allow create: if isIncomingOwner();
+      allow update: if isDocOwner() && isIncomingOwner();
+      allow delete: if isDocOwner();
+    }
+
+    // Suppliers collection
+    match /suppliers/{supplierId} {
+      allow read: if isDocOwner();
+      allow create: if isIncomingOwner();
+      allow update: if isDocOwner() && isIncomingOwner();
+      allow delete: if isDocOwner();
+    }
+
+    // Purchases collection
+    match /purchases/{purchaseId} {
+      allow read: if isDocOwner();
+      allow create: if isIncomingOwner();
+      allow update: if isDocOwner() && isIncomingOwner();
+      allow delete: if isDocOwner();
+    }
+
+    // Sales collection
+    match /sales/{saleId} {
+      allow read: if isDocOwner();
+      allow create: if isIncomingOwner();
+      allow update: if isDocOwner() && isIncomingOwner();
+      allow delete: if isDocOwner();
+    }
+
+    // Payments collection
+    match /payments/{paymentId} {
+      allow read: if isDocOwner();
+      allow create: if isIncomingOwner();
+      allow update: if isDocOwner() && isIncomingOwner();
+      allow delete: if isDocOwner();
+    }
+
+    // Stock Movements collection
+    match /stockMovements/{movementId} {
+      allow read: if isDocOwner();
+      allow create: if isIncomingOwner();
+      allow update: if isDocOwner() && isIncomingOwner();
+      allow delete: if isDocOwner();
+    }
+
+    // Quotations collection
+    match /quotations/{quotationId} {
+      allow read: if isDocOwner();
+      allow create: if isIncomingOwner();
+      allow update: if isDocOwner() && isIncomingOwner();
+      allow delete: if isDocOwner();
+    }
+
+    // Test connection doc
+    match /test/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+  }
+}

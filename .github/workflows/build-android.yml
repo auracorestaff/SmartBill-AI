@@ -1,0 +1,107 @@
+name: Build Android APK & AAB
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK and AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Web App
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+
+      - name: Build Android APK (Debug & Release)
+        run: |
+          cd android
+          ./gradlew assembleDebug
+          ./gradlew assembleRelease
+
+      - name: Build Android App Bundle (AAB for Play Store)
+        run: |
+          cd android
+          ./gradlew bundleRelease
+
+      - name: Prepare build artifacts
+        run: |
+          mkdir -p output
+          # Copy APKs
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk output/SmartBill-AI-Release.apk
+          elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk output/SmartBill-AI-Release.apk
+          fi
+          if [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp android/app/build/outputs/apk/debug/app-debug.apk output/SmartBill-AI-Debug.apk
+          fi
+          # Copy AAB
+          if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
+            cp android/app/build/outputs/bundle/release/app-release.aab output/SmartBill-AI-Release.aab
+          fi
+          ls -la output/
+
+      - name: Upload APK to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmartBill-AI-APK
+          path: output/*.apk
+          retention-days: 30
+
+      - name: Upload AAB to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmartBill-AI-AAB
+          path: output/*.aab
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.0
+          name: "SmartBill AI v1.0.0 (APK & AAB)"
+          body: |
+            ### 📱 SmartBill AI Android Build
+            
+            Download the latest Android files:
+            - **`SmartBill-AI-Release.apk`**: Direct installable Android app on any phone.
+            - **`SmartBill-AI-Debug.apk`**: Testing & development APK.
+            - **`SmartBill-AI-Release.aab`**: Android App Bundle for Google Play Store upload.
+          files: |
+            output/*.apk
+            output/*.aab
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

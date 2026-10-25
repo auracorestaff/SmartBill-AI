@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="36" fill="#1e40af"/>
+  <circle cx="96" cy="96" r="64" fill="#3b82f6" opacity="0.3"/>
+  <!-- Bill / Document icon -->
+  <path d="M60 44h72a12 12 0 0 1 12 12v80a12 12 0 0 1-12 12H60a12 12 0 0 1-12-12V56a12 12 0 0 1 12-12z" fill="#ffffff"/>
+  <!-- Lines -->
+  <rect x="64" y="64" width="48" height="6" rx="3" fill="#1e40af"/>
+  <rect x="64" y="80" width="64" height="6" rx="3" fill="#93c5fd"/>
+  <rect x="64" y="96" width="40" height="6" rx="3" fill="#93c5fd"/>
+  <!-- AI sparkle & Rupee badge -->
+  <circle cx="126" cy="122" r="22" fill="#10b981"/>
+  <text x="126" y="129" font-family="system-ui, sans-serif" font-size="20" font-weight="900" fill="#ffffff" text-anchor="middle">₹</text>
+</svg>
