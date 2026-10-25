@@ -86,6 +86,23 @@ export async function compressImage(
   });
 }
 
+// Production Backend API URL for APK & Web environments
+const PRODUCTION_API_BASE = 'https://ais-pre-rvuyuf2ogmoyhhgu427njk-552255070283.asia-east1.run.app';
+
+function getApiEndpoint(path: string): string {
+  // If running inside Capacitor APK on mobile (origin is https://localhost or capacitor://localhost)
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+      window.location.protocol === 'capacitor:' ||
+      window.location.protocol === 'ionic:')
+  ) {
+    return `${PRODUCTION_API_BASE}${path}`;
+  }
+  // Otherwise standard relative path for web browser
+  return path;
+}
+
 /**
  * Extracts Indian GST bill data using Server-Side Gemini AI vision endpoint,
  * with client-side Tesseract OCR fallback if offline or unreachable.
@@ -98,7 +115,10 @@ export async function extractBillWithAI(
 
   // 1. Try Primary Server-Side Gemini Vision endpoint (/api/extract-bill)
   try {
-    const res = await fetch('/api/extract-bill', {
+    const endpointUrl = getApiEndpoint('/api/extract-bill');
+    console.log('[AI Scanner] Calling extract-bill endpoint at:', endpointUrl);
+
+    const res = await fetch(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

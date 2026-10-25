@@ -40,7 +40,8 @@ export const PurchaseScannerModal: React.FC<PurchaseScannerModalProps> = ({
     try {
       // Compress image client side
       const compressed = await compressImage(file, 1600, 0.85);
-      setSelectedImage(compressed.base64);
+      const dataUrl = `data:image/jpeg;base64,${compressed.base64}`;
+      setSelectedImage(dataUrl);
       setExtractionError(null);
     } catch (err) {
       console.error('Image compression error:', err);
@@ -55,7 +56,8 @@ export const PurchaseScannerModal: React.FC<PurchaseScannerModalProps> = ({
     setExtractionError(null);
 
     try {
-      const result = await extractBillWithAI(selectedImage);
+      const cleanBase64 = selectedImage.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+      const result = await extractBillWithAI(cleanBase64, 'image/jpeg');
       onExtractionSuccess(result, selectedImage);
     } catch (err: any) {
       console.error('AI Extraction Error:', err);
