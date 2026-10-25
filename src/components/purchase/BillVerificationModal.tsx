@@ -93,53 +93,60 @@ export const BillVerificationModal: React.FC<BillVerificationModalProps> = ({
     setInvoiceDate(formatDateToIndian(extractedData.invoiceDate));
     setIsInterstate(Boolean(extractedData.isInterstate));
 
-    const mappedItems: PurchaseItem[] = (extractedData.items || []).map((extItem) => {
-      // Product Auto-Matching by name, sku, hsn, code
-      const cleanName = (extItem.itemName || '').trim().toLowerCase();
-      const cleanHsn = (extItem.hsn || '').trim();
-      const matchedProd = existingProducts.find((p) => {
-        const pName = p.name.toLowerCase();
-        return (
-          pName === cleanName ||
-          (cleanName.length > 4 && pName.includes(cleanName)) ||
-          (p.sku && extItem.productCode && p.sku.toLowerCase() === extItem.productCode.toLowerCase()) ||
-          (cleanHsn && p.hsn === cleanHsn && pName.includes(cleanName.slice(0, 4)))
-        );
-      });
+    const mappedItems: PurchaseItem[] = (extractedData.items || [])
+      .map((extItem, idx) => {
+        // Product Auto-Matching by name, sku, hsn, code
+        let rawName = (extItem.itemName || '').trim();
+        // Clean leading non-alphanumeric noise or isolated index numbers
+        rawName = rawName.replace(/^[#*•\-_¢§£$%@!~`+=\\|\[\]{};:"'<>?\/0-9\s]+/, '').trim();
+        const itemNameFallback = rawName || `Item #${idx + 1}`;
 
-      const qty = extItem.quantity > 0 ? extItem.quantity : 1;
-      const rate = extItem.purchaseRate > 0 ? extItem.purchaseRate : 0;
-      const gst = extItem.gstRate !== null && extItem.gstRate !== undefined ? extItem.gstRate : 18;
-      const disc = extItem.discount || 0;
+        const cleanName = itemNameFallback.toLowerCase();
+        const cleanHsn = (extItem.hsn || '').trim();
+        const matchedProd = existingProducts.find((p) => {
+          const pName = p.name.toLowerCase();
+          return (
+            pName === cleanName ||
+            (cleanName.length > 4 && pName.includes(cleanName)) ||
+            (p.sku && extItem.productCode && p.sku.toLowerCase() === extItem.productCode.toLowerCase()) ||
+            (cleanHsn && p.hsn === cleanHsn && pName.includes(cleanName.slice(0, 4)))
+          );
+        });
 
-      const calc = calculateLineItem({
-        quantity: qty,
-        rate,
-        discount: disc,
-        gstRate: gst,
-        isInterstate: Boolean(extractedData.isInterstate),
-      });
+        const qty = extItem.quantity > 0 ? extItem.quantity : 1;
+        const rate = extItem.purchaseRate > 0 ? extItem.purchaseRate : 0;
+        const gst = extItem.gstRate !== null && extItem.gstRate !== undefined ? extItem.gstRate : 18;
+        const disc = extItem.discount || 0;
 
-      return {
-        id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        productId: matchedProd?.id,
-        productName: matchedProd?.name || extItem.itemName || 'Item',
-        productCode: extItem.productCode || undefined,
-        hsn: extItem.hsn || matchedProd?.hsn || undefined,
-        quantity: qty,
-        unit: extItem.unit || matchedProd?.unit || 'PCS',
-        purchaseRate: rate,
-        discount: disc,
-        taxableAmount: calc.taxableAmount,
-        gstRate: gst,
-        cgst: calc.cgst,
-        sgst: calc.sgst,
-        igst: calc.igst,
-        lineTotal: calc.lineTotal,
-        isNewProduct: !matchedProd,
-        needsVerification: extItem.confidence === 'uncertain' || rate === 0,
-      };
-    });
+        const calc = calculateLineItem({
+          quantity: qty,
+          rate,
+          discount: disc,
+          gstRate: gst,
+          isInterstate: Boolean(extractedData.isInterstate),
+        });
+
+        return {
+          id: `item_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+          productId: matchedProd?.id,
+          productName: matchedProd?.name || itemNameFallback,
+          productCode: extItem.productCode || undefined,
+          hsn: extItem.hsn || matchedProd?.hsn || undefined,
+          quantity: qty,
+          unit: extItem.unit || matchedProd?.unit || 'PCS',
+          purchaseRate: rate,
+          discount: disc,
+          taxableAmount: calc.taxableAmount,
+          gstRate: gst,
+          cgst: calc.cgst,
+          sgst: calc.sgst,
+          igst: calc.igst,
+          lineTotal: calc.lineTotal,
+          isNewProduct: !matchedProd,
+          needsVerification: extItem.confidence === 'uncertain' || rate === 0 || !rawName,
+        };
+      })
+      .filter((i) => i.quantity > 0 || i.purchaseRate > 0 || i.productName.length > 0);
 
     if (mappedItems.length === 0) {
       // Add a blank row if none extracted
@@ -307,10 +314,11 @@ export const BillVerificationModal: React.FC<BillVerificationModalProps> = ({
       return;
     }
 
-    if (items.some((i) => !i.productName.trim())) {
-      alert('Please ensure all items have a product name.');
-      return;
-    }
+    // Auto-fix any item row that might have an empty name so it never blocks saving
+    const sanitizedItems = items.map((item, idx) => ({
+      ...item,
+      productName: item.productName.trim() || `Item #${idx + 1}`,
+    }));
 
     setIsSaving(true);
 
@@ -343,7 +351,7 @@ export const BillVerificationModal: React.FC<BillVerificationModalProps> = ({
       const newProductsToCreate: Product[] = [];
       const finalItems: PurchaseItem[] = [];
 
-      for (const item of items) {
+      for (const item of sanitizedItems) {
         let finalProdId = item.productId;
 
         if (!finalProdId) {

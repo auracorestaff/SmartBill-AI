@@ -94,8 +94,16 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
     const lower = line.toLowerCase();
     const isIgnored = ignoreHeadingKeywords.some((kw) => lower === kw || lower.startsWith(kw + ' '));
     if (!isIgnored && line.length >= 3 && !line.match(/^[0-9\W]+$/) && !line.includes('GSTIN') && !line.includes('Phone')) {
-      supplierName = line.replace(/^[#*•\-_]+\s*/, '').trim();
-      break;
+      // Clean non-alphanumeric noise, OCR glitches like "¢§ bn CHEMIZONE CHEMICALS"
+      let cleanedName = line.replace(/^[#*•\-_¢§£$%@!~`+=\\|\[\]{};:"'<>?\/0-9\s]+/, '').trim();
+      // Remove leading junk 1-2 character tokens if immediately followed by capitalized vendor name
+      cleanedName = cleanedName.replace(/^[a-z0-9]{1,2}\s+(?=[A-Z])/i, '').trim();
+      cleanedName = cleanedName.replace(/["'”]+$/, '').trim();
+
+      if (cleanedName.length >= 3) {
+        supplierName = cleanedName;
+        break;
+      }
     }
   }
 
