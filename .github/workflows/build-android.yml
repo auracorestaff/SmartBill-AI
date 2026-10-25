@@ -85,23 +85,30 @@ jobs:
           path: output/*.aab
           retention-days: 30
 
-      - name: Create GitHub Release
+      - name: Generate Release Tag
+        id: tag
+        run: |
+          BUILD_NUM=${{ github.run_number }}
+          echo "TAG_NAME=v1.0.${BUILD_NUM}" >> $GITHUB_OUTPUT
+
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.0
-          name: "SmartBill AI v1.0.0 (APK & AAB)"
+          tag_name: ${{ steps.tag.outputs.TAG_NAME }}
+          name: "SmartBill AI ${{ steps.tag.outputs.TAG_NAME }} (APK & AAB)"
           body: |
-            ### 📱 SmartBill AI Android Build
+            ### 📱 SmartBill AI Android Build (${{ steps.tag.outputs.TAG_NAME }})
             
-            Download the latest Android files:
-            - **`SmartBill-AI-Release.apk`**: Direct installable Android app on any phone.
-            - **`SmartBill-AI-Debug.apk`**: Testing & development APK.
-            - **`SmartBill-AI-Release.aab`**: Android App Bundle for Google Play Store upload.
+            **Direct Download Links:**
+            - 📥 [**Download SmartBill-AI-Release.apk**](https://github.com/auracorestaff/SmartBill-AI/releases/download/${{ steps.tag.outputs.TAG_NAME }}/SmartBill-AI-Release.apk) (Install directly on phone)
+            - 📥 [**Download SmartBill-AI-Debug.apk**](https://github.com/auracorestaff/SmartBill-AI/releases/download/${{ steps.tag.outputs.TAG_NAME }}/SmartBill-AI-Debug.apk)
+            - 📥 [**Download SmartBill-AI-Release.aab**](https://github.com/auracorestaff/SmartBill-AI/releases/download/${{ steps.tag.outputs.TAG_NAME }}/SmartBill-AI-Release.aab) (For Google Play)
           files: |
             output/*.apk
             output/*.aab
           draft: false
           prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
