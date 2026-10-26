@@ -1,4 +1,4 @@
-import { ExtractedBillData } from '../types';
+import type { ExtractedBillData } from '../types';
 
 function parseCleanNum(s: string | null | undefined): number {
   if (!s) return 0;
@@ -243,11 +243,11 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
     const rawLine = lines[i];
     const lower = rawLine.toLowerCase();
 
-    // Skip non-item headers and footers
+    // Skip non-item headers and footers (check anywhere in line, not just startsWith)
     if (
-      lower.startsWith('total') ||
-      lower.startsWith('sub total') ||
-      lower.startsWith('subtotal') ||
+      lower.includes('total') ||
+      lower.includes('sub total') ||
+      lower.includes('subtotal') ||
       lower.includes('taxable amount') ||
       lower.includes('tax summary') ||
       lower.includes('amount in words') ||
@@ -292,21 +292,37 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
 
     const tokens = s.split(' ').filter((t) => t.length > 0);
 
-    // Look for trailing numbers (from right to left)
+    // Look for trailing numeric tokens (from right to left)
+    // CRITICAL FIX: Ignore 6-8 digit HSN/SAC codes (e.g. 33074900, 38249900) so they are NEVER collected as prices!
     const trailingNumbers: number[] = [];
     let tokenIdx = tokens.length - 1;
+    let extractedHsn: string | null = null;
 
     while (tokenIdx >= 0) {
       const rawVal = tokens[tokenIdx].replace(/[₹$,]/g, '');
+
+      // Check if this token is an 8-digit or 6-digit HSN/SAC code without decimal
+      if (/^\d{6,8}$/.test(rawVal) && !rawVal.includes('.')) {
+        if (!extractedHsn) extractedHsn = rawVal;
+        tokenIdx--;
+        continue;
+      }
+
       if (/^\d+(?:\.\d+)?$/.test(rawVal)) {
-        trailingNumbers.unshift(parseFloat(rawVal));
+        const parsedVal = parseFloat(rawVal);
+        // Sanity check: If a number is > 500,000 without decimal, it is an HSN code, NOT an item rate/amount!
+        if (parsedVal > 500000 && !rawVal.includes('.')) {
+          if (!extractedHsn) extractedHsn = rawVal;
+        } else {
+          trailingNumbers.unshift(parsedVal);
+        }
         tokenIdx--;
       } else {
         break;
       }
     }
 
-    // If this line ends with at least 1 number (e.g. Rate, Amount, Total):
+    // If this line ends with at least 1 valid price/amount number:
     if (trailingNumbers.length >= 1) {
       // Check for Unit immediately preceding the trailing numbers
       let unit = 'PCS';
@@ -331,10 +347,9 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
         }
       }
 
-      // Check for HSN / SAC Code preceding quantity (4 to 8 digits)
-      let hsn: string | null = null;
-      if (tokenIdx >= 0 && /^\d{4,8}$/.test(tokens[tokenIdx])) {
-        hsn = tokens[tokenIdx];
+      // Check for HSN / SAC Code preceding quantity (4 to 8 digits) if not already extracted
+      if (!extractedHsn && tokenIdx >= 0 && /^\d{4,8}$/.test(tokens[tokenIdx])) {
+        extractedHsn = tokens[tokenIdx];
         tokenIdx--;
       }
 
@@ -348,6 +363,12 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
 
       let parsedName = nameTokens.join(' ').trim();
 
+      // Clean garbage characters, leading OCR noise (e.g. "o Jrmsvamaen Jor || ve] cec")
+      parsedName = parsedName
+        .replace(/^[#*•\-_¢§£$%@!~`+=\\|\[\]{};:"'<>?\/0-9\s]+/, '')
+        .replace(/["'”|]+$/, '')
+        .trim();
+
       // Combine with any pending multi-line description
       let finalName = pendingDescription ? `${pendingDescription} ${parsedName}`.trim() : parsedName;
       pendingDescription = '';
@@ -360,11 +381,7 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
         finalName = `Item #${items.length + 1}`;
       }
 
-      // Assign numbers logically based on count:
-      // If 4 numbers: [Rate, Taxable, TaxAmt, LineTotal]
-      // If 3 numbers: [Rate, TaxAmt/Taxable, LineTotal]
-      // If 2 numbers: [Rate, LineTotal]
-      // If 1 number:  [LineTotal] (Rate = LineTotal / Qty)
+      // Assign numbers logically based on count
       let purchaseRate = 0;
       let taxableAmount = 0;
       let lineTotal = 0;
@@ -387,10 +404,16 @@ export function parseInvoiceText(rawText: string): ExtractedBillData {
         purchaseRate = qty > 0 ? lineTotal / qty : lineTotal;
       }
 
+      // FINAL SANITY SAFETY: Rate must never be > 500,000 on item row
+      if (purchaseRate > 500000) {
+        if (!extractedHsn) extractedHsn = purchaseRate.toString();
+        purchaseRate = lineTotal > 0 && lineTotal < 500000 ? (qty > 0 ? lineTotal / qty : lineTotal) : 0;
+      }
+
       items.push({
         itemName: finalName,
         productCode: null,
-        hsn,
+        hsn: extractedHsn,
         quantity: qty,
         unit,
         purchaseRate: Math.round(purchaseRate * 100) / 100,

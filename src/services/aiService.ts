@@ -121,6 +121,9 @@ CRITICAL EXTRACTION RULES:
 - Carefully identify and extract EVERY SINGLE ITEM ROW from row #1 to the very last row without omitting or skipping ANY items.
 - If there are 10, 14, 20 or more items in the invoice table, ALL items must be included in the "items" array.
 - For each item, extract the complete product name, HSN/SAC code, quantity, unit (PCS, Pcs, Box, PKT, Can, Nos, Bag, etc.), purchase rate (price per unit before tax), discount, taxable amount, GST rate (0, 5, 12, 18, 28), CGST, SGST, IGST, and line total amount.
+- STRICT RULE ON HSN CODES: 4-digit or 8-digit HSN/SAC codes (like 33074900, 38249900, 34012000, 2933, 2907, 3402) MUST BE PLACED ONLY IN "hsn". NEVER put an HSN/SAC code into "purchaseRate", "taxableAmount", or "lineTotal"!
+- "purchaseRate" MUST be the actual unit price (e.g. 1000.00, 400.00, 170.00, 12500.00).
+- DO NOT INCLUDE summary rows (such as "Total", "Sub Total", "Tax Summary") as item rows in the "items" array!
 - Preserve decimal values accurately (e.g. 170.00, 180.00, 200.60, 21738.00).
 - In summary, extract subtotal, taxableTotal, totalCGST, totalSGST, totalIGST, totalTax, and grandTotal.
 
