@@ -344,6 +344,7 @@ export default function App() {
     // 5. Reload fresh state
     await loadWorkspaceData();
     setIsVerificationOpen(false);
+    showToast(`Purchase Bill ${purchase.invoiceNumber ? '#' + purchase.invoiceNumber : ''} saved! Inventory stock updated for ${purchase.items.length} items.`, 'success');
   };
 
   // Delete Purchase (Reverses stock safely)
@@ -674,11 +675,50 @@ export default function App() {
               await deleteQuotation(id, bizId, currentUid);
               await loadWorkspaceData();
             }}
-            onConvertToSale={(q) => {
+            onConvertToSale={async (q) => {
+              await saveQuotation({ ...q, status: 'CONVERTED', updatedAt: new Date().toISOString() });
+              await loadWorkspaceData();
               setIsNewSaleOpen(true);
+              showToast(`Customer Quotation #${q.quotationNumber} marked as Converted!`, 'info');
             }}
-            onConvertToPurchase={(q) => {
-              setIsScannerOpen(true);
+            onConvertToPurchase={async (q) => {
+              const mappedExtracted: ExtractedBillData = {
+                supplierName: q.partyName || null,
+                supplierPhone: q.partyPhone || null,
+                supplierAddress: null,
+                supplierGSTIN: null,
+                invoiceNumber: q.quotationNumber || null,
+                invoiceDate: q.quotationDate || null,
+                dueDate: q.expiryDate || null,
+                isInterstate: q.isInterstate,
+                items: q.items.map((it) => ({
+                  itemName: it.productName,
+                  hsn: it.hsn || null,
+                  quantity: it.quantity,
+                  unit: it.unit || 'PCS',
+                  purchaseRate: it.rate,
+                  discount: it.discount || 0,
+                  gstRate: it.gstRate,
+                  taxableAmount: it.taxableAmount,
+                  lineTotal: it.lineTotal,
+                })),
+                summary: {
+                  subtotal: q.subtotal,
+                  totalDiscount: q.totalDiscount,
+                  taxableTotal: q.taxableTotal,
+                  totalCGST: q.totalCGST,
+                  totalSGST: q.totalSGST,
+                  totalIGST: q.totalIGST,
+                  totalTax: q.totalTax,
+                  grandTotal: q.grandTotal,
+                },
+              };
+              setExtractedBillData(mappedExtracted);
+              setOriginalBillImageUrl(null);
+              setIsVerificationOpen(true);
+              await saveQuotation({ ...q, status: 'CONVERTED', updatedAt: new Date().toISOString() });
+              await loadWorkspaceData();
+              showToast(`Vendor Quotation #${q.quotationNumber} loaded into Purchase Verification!`, 'success');
             }}
             onShowToast={showToast}
           />
